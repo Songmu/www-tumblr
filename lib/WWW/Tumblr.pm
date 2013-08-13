@@ -76,15 +76,21 @@ use WWW::Tumblr::Blog;
 use WWW::Tumblr::User;
 use WWW::Tumblr::Authentication;
 use LWP::UserAgent;
+use URI;
+use URI::Escape;
+
 
 has 'consumer_key',     is => 'rw', isa => 'Str';
 has 'secret_key',       is => 'rw', isa => 'Str';
 has 'token',            is => 'rw', isa => 'Str';
 has 'token_secret',     is => 'rw', isa => 'Str';
+has 'uri',               is => 'rw', isa => 'URI', default => sub { URI->new("", "http") };
 
 has 'callback',         is => 'rw', isa => 'Str';
 has 'error',            is => 'rw', isa => 'WWW::Tumblr::ResponseError';
-has 'ua',               is => 'rw', isa => 'LWP::UserAgent', default => sub { LWP::UserAgent->new };
+has 'ua',               is => 'rw', isa => 'LWP::UserAgent', default => sub { LWP::UserAgent->new(
+    max_redirect => 0,
+    ) };
 
 has 'session_store',	is => 'rw', isa => 'HashRef', default => sub { {} };
 
@@ -134,13 +140,57 @@ sub oauth_tools {
 }
 
 sub _tumblr_api_request {
-    my $self    = shift;
-    my $r       = shift; #args
+    my $self        = shift;
+    my $r           = shift; #args
 
-    my $method_to_call = '_' . $r->{auth} . '_request';
-    return $self->$method_to_call(
-        $r->{http_method}, $r->{url_path}, $r->{extra_args}
+    my $method      = uc $r->{http_method}; # TODO: verify
+    my $params      =    $r->{extra_args};
+    my $url_path    =    $r->{url_path};
+    my $auth        =    $r->{auth};
+
+    my $data        = delete $params->{data};
+
+    my @query_string = (
+        ( $auth eq 'apikey' ? ( 'api_key='.$self->consumer_key ) : () ),
+        ( $method eq 'GET' ? ( map { $_ . '=' . $params->{ $_} } keys %$params ) : () ),
     );
+
+    my $request_url     = 'http://api.tumblr.com/v2/' . $url_path .
+        ( @query_string ?
+            '?' . join '&', @query_string : '' );
+
+    my $authorization;
+    if ( $auth eq 'oauth' ) {
+	    my $request = $self->oauth->_make_request(
+    		'protected resource', 
+    		request_method      => uc $method,
+    		request_url         => $request_url,
+    		consumer_key        => $self->consumer_key,
+    	    consumer_secret     => $self->secret_key,
+    		token               => $self->token,
+    		token_secret        => $self->token_secret,
+            extra_params        => $params,
+	    );
+    	$request->sign;
+        $authorization = $request->to_authorization_header;
+    }
+
+
+    my $request;
+    if ( $method eq 'GET' ) {
+        $request = GET $request_url,
+            ( $authorization ? ( Authorization => $authorization ) : () );
+    } elsif ( $method eq 'POST' ) {
+        $request = POST $request_url,
+            ( $data ? ( Content_Type => 'form-data' ) : () ),
+            ( $authorization ? ( Authorization => $authorization ) : () ),
+            ( Content => [ %$params, (
+                $data ? ( data => $data ) : ()
+            ) ] ),
+    }
+
+    my $res = $self->ua->request( $request );
+
 }
 
 sub _none_request {
