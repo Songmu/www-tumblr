@@ -9,11 +9,12 @@ WriteMakefile(
     LICENSE         => 'perl',
 
     PREREQ_PM => {
-        'Moose'                 => 0,
+        'Moo'                   => 0,
         'JSON'                  => 0,
         'LWP::UserAgent'        => 0,
         'Net::OAuth::Client'    => 0,
         'HTTP::Request::Common' => 0,
+        'parent'                => 0,
     },
 
     TEST_REQUIRES => {

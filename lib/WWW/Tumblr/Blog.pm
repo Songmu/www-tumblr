@@ -1,12 +1,12 @@
 package WWW::Tumblr::Blog;
-use Moose;
 use Data::Dumper;
 use JSON;
 
+use Moo;
 use WWW::Tumblr::API;
 extends 'WWW::Tumblr';
 
-has 'base_hostname', is => 'rw', isa => 'Str', required => 1;
+has 'base_hostname', is => 'rw', required => 1;
 
 tumblr_api_method info                  => [ 'GET',  'apikey' ];
 tumblr_api_method avatar                => [ 'GET',  'none', undef, 'size' ];
@@ -49,7 +49,6 @@ sub _post {
         unless $args{ type };
 
     # check for required params per type:
-    
     if ( $post_required_params{ $args{ type } } ) {
         my $req = $post_required_params{ $args{ type } };
         if ( ref $req && ref $req eq 'HASH' && defined $req->{any} ) {
@@ -73,7 +72,7 @@ sub _post {
         return decode_json( $response->decoded_content)->{response};
     } else {
         $self->error( WWW::Tumblr::ResponseError->new(
-            response => $response    
+            response => $response
         ));
         return
     }

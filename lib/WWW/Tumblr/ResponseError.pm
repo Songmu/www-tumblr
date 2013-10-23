@@ -1,10 +1,10 @@
 package WWW::Tumblr::ResponseError;
 
-use Moose;
+use Moo;
 use Data::Dumper;
 use JSON 'decode_json';
 
-has 'response', is => 'rw', isa => 'HTTP::Response';
+has 'response', is => 'rw', isa => sub { shift->isa('HTTP::Response') };
 
 sub code    { $_[0]->response->code }
 sub reasons  {

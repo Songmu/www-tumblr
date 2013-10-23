@@ -1,6 +1,6 @@
 package WWW::Tumblr::User;
 
-use Moose;
+use Moo;
 use strict;
 use warnings;
 

@@ -23,7 +23,7 @@ WWW::Tumblr - Perl bindings for the Tumblr API
      token           => $token,
      token_secret    => $token_secret,
   );
- 
+  
   my $blog = $t->blog('perlapi.tumblr.com');
 
   print Dumper $blog->info;
@@ -44,10 +44,10 @@ meaning that you will have User, Blog and Tagged methods:
   # by calling the blog() method from the former object:
   
   my $blog = $t->blog('perlapi.tumblr.com');
- 
+  
   # And then just use WWW::Tumblr::Blog methods from it:
   if ( my $post = $blog->post( type => 'text', body => 'Hell yeah, son!' ) ) {
-     say "I have published post id: " . $post->{id};    
+     say "I have published post id: " . $post->{id};
   } else {
      print STDERR Dumper $blog->error;
      die "I couldn't post it :(";
@@ -142,16 +142,12 @@ Krivopolenov, Squeeks, Fernando Vezzosi.
 
 L<Net::OAuth> because, you know, we're based off it.
 
-=item *
-
-L<Moose>, likewise.
-
 =back
 
 =head1 COPYRIGHT and LICENSE
 
 This software is copyright (c) 2013 by David Moreno.
- 
+
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
@@ -164,40 +160,44 @@ Foundation at L<http://donate.perlfoundation.org/>.
 
 =cut
 
-use Moose;
 use Carp;
 use Data::Dumper;
 use HTTP::Request::Common;
 use Net::OAuth::Client;
-use WWW::Tumblr::API;
-use WWW::Tumblr::Blog;
-use WWW::Tumblr::User;
-use WWW::Tumblr::Authentication;
 use LWP::UserAgent;
 
-has 'consumer_key',     is => 'rw', isa => 'Str';
-has 'secret_key',       is => 'rw', isa => 'Str';
-has 'token',            is => 'rw', isa => 'Str';
-has 'token_secret',     is => 'rw', isa => 'Str';
+use Moo;
 
-has 'callback',         is => 'rw', isa => 'Str';
-has 'error',            is => 'rw', isa => 'WWW::Tumblr::ResponseError';
-has 'ua',               is => 'rw', isa => 'LWP::UserAgent', default => sub { LWP::UserAgent->new };
+has 'consumer_key',     is => 'rw';
+has 'secret_key',       is => 'rw';
+has 'token',            is => 'rw';
+has 'token_secret',     is => 'rw';
 
-has 'session_store',	is => 'rw', isa => 'HashRef', default => sub { {} };
+has 'callback',         is => 'rw';
+has 'error',            is => 'rw', isa => sub { shift->isa('WWW::Tumblr::ResponseError') };
+has 'ua',               is => 'rw', isa => sub { shift->isa('LWP::UserAgent') }, default => sub { LWP::UserAgent->new };
 
-has 'oauth',            is => 'rw', isa => 'Net::OAuth::Client', default => sub {
-	my $self = shift;
-	Net::OAuth::Client->new(
-		$self->consumer_key,
-		$self->secret_key,
-		request_token_path => 'http://www.tumblr.com/oauth/request_token',
-		authorize_path => 'http://www.tumblr.com/oauth/authorize',
-		access_token_path => 'http://www.tumblr.com/oauth/access_token',
-		callback => $self->callback, 
-		session => sub { if (@_ > 1) { $self->_session($_[0] => $_[1]) }; return $self->_session($_[0]) },
-	);
+has 'session_store',    is => 'rw', isa => sub { ref $_[0] eq 'HASH' }, default => sub { {} };
+
+has 'oauth',            is => 'rw', isa => sub { shift->isa('Net::OAuth::Client') }, default => sub {
+    my $self = shift;
+    Net::OAuth::Client->new(
+        $self->consumer_key,
+        $self->secret_key,
+        request_token_path => 'http://www.tumblr.com/oauth/request_token',
+        authorize_path     => 'http://www.tumblr.com/oauth/authorize',
+        access_token_path  => 'http://www.tumblr.com/oauth/access_token',
+        callback           => $self->callback,
+        session            => sub { if (@_ > 1) { $self->_session($_[0] => $_[1]) }; return $self->_session($_[0]) },
+    );
 };
+
+no Moo;
+
+require WWW::Tumblr::API;
+require WWW::Tumblr::Blog;
+require WWW::Tumblr::User;
+require WWW::Tumblr::Authentication;
 
 sub user {
     my ( $self ) = shift;
@@ -235,12 +235,12 @@ sub tagged {
 }
 
 sub oauth_tools {
-	my ( $self ) = shift;
-	return WWW::Tumblr::Authentication::OAuth->new(
-		consumer_key    => $self->consumer_key,
+    my ( $self ) = shift;
+    return WWW::Tumblr::Authentication::OAuth->new(
+        consumer_key    => $self->consumer_key,
         secret_key      => $self->secret_key,
-        callback		=> $self->callback,
-	);
+        callback        => $self->callback,
+    );
 }
 
 sub _tumblr_api_request {
@@ -288,7 +288,7 @@ sub _apikey_request {
     if ( $method eq 'GET' ) {
         $req = HTTP::Request->new(
             $method => 'http://api.tumblr.com/v2/' . $url_path . '?api_key='.$self->consumer_key . '&' .
-            ( join '&', map { $_ .'='. $params->{ $_} } keys %$params )
+            ( join '&', map { $_ .'='. $params->{$_} } keys %$params )
         );
     } elsif ( $method eq 'POST' ) {
         Carp::croak "Unimplemented";
@@ -301,24 +301,24 @@ sub _apikey_request {
 }
 
 sub _oauth_request {
-	my $self = shift;
-	my $method = shift;
-	my $url_path= shift;
-	my $params = shift;
+    my $self = shift;
+    my $method = shift;
+    my $url_path = shift;
+    my $params = shift;
 
     my $data = delete $params->{data};
 
-	my $request = $self->oauth->_make_request(
-		'protected resource', 
-		request_method => uc $method,
-		request_url => 'http://api.tumblr.com/v2/' . $url_path,
-		consumer_key => $self->consumer_key,
-	    consumer_secret => $self->secret_key,
-		token => $self->token,
-		token_secret => $self->token_secret,
-		extra_params => $params,
-	);
-	$request->sign;
+    my $request = $self->oauth->_make_request(
+        'protected resource',
+        request_method => uc $method,
+        request_url => 'http://api.tumblr.com/v2/' . $url_path,
+        consumer_key => $self->consumer_key,
+        consumer_secret => $self->secret_key,
+        token => $self->token,
+        token_secret => $self->token_secret,
+        extra_params => $params,
+    );
+    $request->sign;
 
     my $authorization_signature = $request->to_authorization_header;
 
@@ -337,19 +337,18 @@ sub _oauth_request {
             ]);
     }
 
-	return $self->ua->request( $message );
+    return $self->ua->request( $message );
 }
 
 sub _session {
-	my $self = shift;
+    my $self = shift;
 
-	if ( ref $_[0] eq 'HASH' ) {
-		$self->session_store($_[0]);
-	} elsif ( @_ > 1 ) {
-		$self->session_store->{$_[0]} = $_[1]
-	}
-	return $_[0] ? $self->session_store->{$_[0]} : $self->session_store;
+    if ( ref $_[0] eq 'HASH' ) {
+        $self->session_store($_[0]);
+    } elsif ( @_ > 1 ) {
+        $self->session_store->{$_[0]} = $_[1]
+    }
+    return $_[0] ? $self->session_store->{$_[0]} : $self->session_store;
 }
 
 1;
-

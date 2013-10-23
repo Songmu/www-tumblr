@@ -3,25 +3,28 @@ package WWW::Tumblr::API;
 use strict;
 use warnings;
 
-use Moose;
+use Moo;
 use JSON 'decode_json';
-use Moose::Exporter;
-Moose::Exporter->setup_import_methods(with_caller => ['tumblr_api_method']);
+
+use parent 'Exporter';
+
+our @EXPORT = qw/tumblr_api_method/;
 use WWW::Tumblr::ResponseError;
 
 sub tumblr_api_method ($$) {
-    my $class = Moose::Meta::Class->initialize( shift );
+    my $class = caller;
     my $method_name = $_[0];
     my $method_spec = $_[1];
 
-    my $sub = sub {
+    no strict 'refs';
+    *{"$class\::$method_name"} = sub {
+        use strict 'refs';
+
         my $self = shift;
         my $args = { @_ };
 
         my ( $http_method, $auth_method, $req_params, $url_param ) = @{ $method_spec };
-       
         my $kind = lc( pop( @{ [ split '::', ref $self ] }));
-
         my $response = $self->_tumblr_api_request({
             auth        => $auth_method,
             http_method => $http_method,
@@ -42,9 +45,6 @@ sub tumblr_api_method ($$) {
             return;
         }
     };
-
-    $class->add_method($method_name, $sub );
-
 }
 
 1;
